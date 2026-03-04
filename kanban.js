@@ -11,6 +11,7 @@ function escHtml(str) {
 }
 
 function validadorTexto(texto) {
+  if (!texto) return false;
   return (
     texto.trim().length > 0 && /^[a-zA-ZÁÉÍÓÚáéíóúñÑ\s]+$/.test(texto.trim())
   );
