@@ -12,14 +12,12 @@ function escHtml(str) {
 
 function validadorTexto(texto) {
   if (!texto) return false;
-  return (
-    texto.trim().length > 0 && /^[a-zA-ZÁÉÍÓÚáéíóúñÑ\s]+$/.test(texto.trim())
-  );
+  return texto.trim().length >= 2;
 }
 
 function validarTexto(input) {
-  if (!validadorTexto(input.value)) {
-    input.setCustomValidity("Solo letras y espacios");
+  if (input.value.trim().length < 2) {
+    input.setCustomValidity("Mínimo 2 caracteres");
   } else {
     input.setCustomValidity("");
   }
@@ -34,48 +32,74 @@ function validarNumero(input) {
   }
 }
 
-/*
-  <--------- CLASE TAREA --------->
-*/
+// --- CLASE TAREA ---
+
+let nextId = parseInt(localStorage.getItem("nextId") || "1");
+
 class Tareas {
   constructor(
     tareaNombre,
     tareaAsignacion,
     tareaPrioridad,
     tareaDescripcion,
-    tareaHours
+    tareaHours,
+    deadline
   ) {
+    this.id = nextId++;
+    localStorage.setItem("nextId", nextId);
     this.tareaNombre = tareaNombre;
     this.tareaAsignacion = tareaAsignacion;
     this.tareaPrioridad = tareaPrioridad;
     this.tareaDescripcion = tareaDescripcion;
     this.tareaHours = tareaHours;
+    this.deadline = deadline;
     this.segundosRestantes = tareaHours * 3600;
     this.estado = "pendiente";
   }
 }
 
-/*
-   NOMBRE JEFE DE PROYECTO
-*/
+// --- ESTADO GLOBAL ---
+
+let tareas = JSON.parse(localStorage.getItem("tareas")) || [];
+let filtroActivo = "todas";
+let draggingIndex = null;
+
+// --- NOMBRE JEFE ---
+
 const pmName = document.getElementById("pmName");
 
 function cargarNombre() {
   let nombreJefe = localStorage.getItem("nombreJefe");
 
-  if (nombreJefe && !validadorTexto(nombreJefe)) {
-    localStorage.removeItem("nombreJefe");
-    nombreJefe = null;
+  if (nombreJefe && validadorTexto(nombreJefe)) {
+    pmName.textContent = nombreJefe;
+    setupChangeUser();
+    return;
   }
 
-  if (!nombreJefe) {
-    let entrada = prompt("Introduce el nombre del jefe de proyecto");
-    nombreJefe = validadorTexto(entrada) ? entrada.trim() : "Anónimo";
-  }
+  // Mostrar modal propio (sin prompt)
+  const modal = document.getElementById("nameModal");
+  modal.classList.add("visible");
 
-  localStorage.setItem("nombreJefe", nombreJefe);
-  pmName.textContent = nombreJefe;
+  const submit = () => {
+    const val = document.getElementById("nameInput").value.trim();
+    const nombre = validadorTexto(val) ? val : "Anónimo";
+    localStorage.setItem("nombreJefe", nombre);
+    pmName.textContent = nombre;
+    modal.classList.remove("visible");
+    setupChangeUser();
+  };
 
+  document.getElementById("nameSubmit").addEventListener("click", submit);
+  document.getElementById("nameInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submit();
+  });
+
+  // Focus automático
+  setTimeout(() => document.getElementById("nameInput").focus(), 100);
+}
+
+function setupChangeUser() {
   document.getElementById("changeUserBtn").addEventListener("click", () => {
     localStorage.removeItem("nombreJefe");
     localStorage.removeItem("tareas");
@@ -84,80 +108,78 @@ function cargarNombre() {
   });
 }
 
-/*
-   FORMULARIO
-*/
+// --- FORMULARIO ---
 
-// <--------- RECUPERO LAS TAREAS --------->
-let tareas = JSON.parse(localStorage.getItem("tareas")) || [];
-let filtroActivo = "todas";
+let tareas_recuperadas = JSON.parse(localStorage.getItem("tareas")) || [];
 
-// <-------- IDENTIFICO LOS INPUTS -------->
 const form = document.getElementById("taskForm");
 const nombreTarea = document.getElementById("taskName");
 const asig = document.getElementById("assignedTo");
 const prioridad = document.getElementById("priority");
 const description = document.getElementById("description");
 const hours = document.getElementById("hours");
+const deadlineInput = document.getElementById("deadline");
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
 
-  // <------ VALIDAR INPUTS ------>
   validarTexto(nombreTarea);
   validarTexto(asig);
-  description.setCustomValidity(""); // descripción es opcional
+  description.setCustomValidity("");
   validarNumero(hours);
 
-  // <------- VALIDO FORM ------->
   if (!form.checkValidity()) {
     form.reportValidity();
     return;
   }
 
-  // <------- CREO LA TAREA ------>
   const nuevaTarea = new Tareas(
     nombreTarea.value.trim(),
     asig.value.trim(),
     prioridad.value,
     description.value.trim(),
-    Number(hours.value)
+    Number(hours.value),
+    deadlineInput.value
   );
 
-  // <-------- AÑADO LA TAREA ------>
   tareas.push(nuevaTarea);
   localStorage.setItem("tareas", JSON.stringify(tareas));
-
   form.reset();
   renderTasks();
 });
 
-/*
-   RENDERIZAR TAREAS
-*/
+// --- RENDERIZAR TAREAS ---
+
 function renderTasks() {
-  // <------- IDENTIFICO DOM -------->
   const pendiente = document.getElementById("pendienteList");
   const progreso = document.getElementById("progresoList");
   const finalizada = document.getElementById("finalizadaList");
 
-  // <--------- LIMPIO EL INNER --------->
   pendiente.innerHTML = "";
   progreso.innerHTML = "";
   finalizada.innerHTML = "";
 
-  // <------ RECORRO LAS TAREAS ----->
+  const today = new Date().toISOString().split("T")[0];
+
   tareas.forEach((ta, index) => {
     if (filtroActivo !== "todas" && ta.tareaPrioridad !== filtroActivo) return;
+
     const tarjeta = document.createElement("div");
     tarjeta.classList.add("tarjeta");
+    tarjeta.draggable = true;
 
     const prioLabel =
       ta.tareaPrioridad.charAt(0).toUpperCase() + ta.tareaPrioridad.slice(1);
+
     const contadorHTML =
       ta.estado === "progreso"
         ? `<p class="contador" data-id="${index}"></p>`
         : "";
+
+    const overdue = ta.deadline && ta.deadline < today && ta.estado !== "finalizada";
+    const deadlineHTML = ta.deadline
+      ? `<p class="deadline ${overdue ? "overdue" : ""}">📅 ${ta.deadline}${overdue ? " ⚠️ Vencida" : ""}</p>`
+      : "";
 
     tarjeta.innerHTML = `
       <div class="tarjeta-header">
@@ -167,30 +189,37 @@ function renderTasks() {
       <p><strong>Asignado:</strong> ${escHtml(ta.tareaAsignacion)}</p>
       ${ta.tareaDescripcion ? `<p class="desc">${escHtml(ta.tareaDescripcion)}</p>` : ""}
       <p class="horas"><strong>Horas:</strong> ${ta.tareaHours}h</p>
+      ${deadlineHTML}
       ${contadorHTML}
       <div class="controles">
         <button class="btn-ctrl move-left" title="Mover atrás">&#9664;</button>
         <button class="btn-ctrl move-right" title="Mover adelante">&#9654;</button>
-        <button class="btn-delete" title="Eliminar tarea">&#x2715;</button>
+        <button class="btn-edit" title="Editar">&#9998;</button>
+        <button class="btn-delete" title="Eliminar">&#x2715;</button>
       </div>
     `;
 
-    tarjeta
-      .querySelector(".move-left")
-      .addEventListener("click", () => moverTarea(index, -1));
-    tarjeta
-      .querySelector(".move-right")
-      .addEventListener("click", () => moverTarea(index, 1));
-    tarjeta
-      .querySelector(".btn-delete")
-      .addEventListener("click", () => borrarTarea(index));
+    tarjeta.querySelector(".move-left").addEventListener("click", () => moverTarea(index, -1));
+    tarjeta.querySelector(".move-right").addEventListener("click", () => moverTarea(index, 1));
+    tarjeta.querySelector(".btn-edit").addEventListener("click", () => abrirEditModal(index));
+    tarjeta.querySelector(".btn-delete").addEventListener("click", () => borrarTarea(index, tarjeta));
+
+    // Drag events en la tarjeta
+    tarjeta.addEventListener("dragstart", () => {
+      draggingIndex = index;
+      setTimeout(() => tarjeta.classList.add("dragging"), 0);
+    });
+    tarjeta.addEventListener("dragend", () => {
+      tarjeta.classList.remove("dragging");
+      draggingIndex = null;
+    });
 
     if (ta.estado === "pendiente") pendiente.appendChild(tarjeta);
     if (ta.estado === "progreso") progreso.appendChild(tarjeta);
     if (ta.estado === "finalizada") finalizada.appendChild(tarjeta);
   });
 
-  // Actualizar contadores de columna
+  // Contadores de columna
   document.querySelectorAll(".column").forEach((col) => {
     const status = col.dataset.status;
     const count = tareas.filter((t) => t.estado === status).length;
@@ -202,57 +231,128 @@ function renderTasks() {
   actualizarResumenGlobal();
 }
 
-/*
-   ELIMINAR TAREA
-*/
-function borrarTarea(i) {
-  if (!confirm(`¿Eliminar la tarea "${tareas[i].tareaNombre}"?`)) return;
-  tareas.splice(i, 1);
-  localStorage.setItem("tareas", JSON.stringify(tareas));
-  renderTasks();
+// --- DRAG & DROP en columnas (se registra una sola vez) ---
+
+function initDragDrop() {
+  document.querySelectorAll(".column-body").forEach((colBody) => {
+    colBody.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      colBody.classList.add("drag-over");
+    });
+    colBody.addEventListener("dragleave", (e) => {
+      if (!colBody.contains(e.relatedTarget)) {
+        colBody.classList.remove("drag-over");
+      }
+    });
+    colBody.addEventListener("drop", (e) => {
+      e.preventDefault();
+      colBody.classList.remove("drag-over");
+      if (draggingIndex === null) return;
+      const newStatus = colBody.closest(".column").dataset.status;
+      if (tareas[draggingIndex].estado === newStatus) return;
+      tareas[draggingIndex].estado = newStatus;
+      if (newStatus === "progreso") iniciarCuentaAtras();
+      if (newStatus === "finalizada") lanzarConfeti();
+      localStorage.setItem("tareas", JSON.stringify(tareas));
+      renderTasks();
+    });
+  });
 }
 
-/*
-   MOVER TAREAS ENTRE COLUMNAS
-*/
+// --- ELIMINAR TAREA ---
+
+function borrarTarea(i, cardEl) {
+  if (!confirm(`¿Eliminar la tarea "${tareas[i].tareaNombre}"?`)) return;
+  cardEl.classList.add("fade-out");
+  cardEl.addEventListener("animationend", () => {
+    tareas.splice(i, 1);
+    localStorage.setItem("tareas", JSON.stringify(tareas));
+    renderTasks();
+  });
+}
+
+// --- EDITAR TAREA ---
+
+function abrirEditModal(i) {
+  const t = tareas[i];
+  document.getElementById("editNombre").value = t.tareaNombre;
+  document.getElementById("editAsig").value = t.tareaAsignacion;
+  document.getElementById("editPrioridad").value = t.tareaPrioridad;
+  document.getElementById("editDesc").value = t.tareaDescripcion;
+  document.getElementById("editHours").value = t.tareaHours;
+  document.getElementById("editDeadline").value = t.deadline || "";
+
+  const modal = document.getElementById("editModal");
+  modal.classList.add("visible");
+
+  const saveBtn = document.getElementById("editSave");
+  const cancelBtn = document.getElementById("editCancel");
+
+  const save = () => {
+    const nombre = document.getElementById("editNombre").value.trim();
+    const asignado = document.getElementById("editAsig").value.trim();
+    if (nombre.length < 2 || asignado.length < 2) {
+      alert("Nombre y asignado deben tener al menos 2 caracteres");
+      return;
+    }
+    t.tareaNombre = nombre;
+    t.tareaAsignacion = asignado;
+    t.tareaPrioridad = document.getElementById("editPrioridad").value;
+    t.tareaDescripcion = document.getElementById("editDesc").value.trim();
+    t.tareaHours = parseFloat(document.getElementById("editHours").value) || t.tareaHours;
+    t.deadline = document.getElementById("editDeadline").value;
+    localStorage.setItem("tareas", JSON.stringify(tareas));
+    cleanup();
+    renderTasks();
+  };
+
+  const cancel = () => cleanup();
+
+  const cleanup = () => {
+    modal.classList.remove("visible");
+    saveBtn.removeEventListener("click", save);
+    cancelBtn.removeEventListener("click", cancel);
+    modal.removeEventListener("click", outsideClick);
+  };
+
+  const outsideClick = (e) => { if (e.target === modal) cleanup(); };
+
+  saveBtn.addEventListener("click", save);
+  cancelBtn.addEventListener("click", cancel);
+  modal.addEventListener("click", outsideClick);
+}
+
+// --- MOVER TAREAS ---
+
 function moverTarea(i, dir) {
   const estados = ["pendiente", "progreso", "finalizada"];
   const pos = estados.indexOf(tareas[i].estado);
   const nuevaPos = pos + dir;
-
   if (nuevaPos < 0 || nuevaPos > 2) return;
 
   tareas[i].estado = estados[nuevaPos];
   localStorage.setItem("tareas", JSON.stringify(tareas));
 
-  if (estados[nuevaPos] === "progreso") {
-    iniciarCuentaAtras();
-  }
-  if (estados[nuevaPos] === "finalizada") {
-    lanzarConfeti();
-  }
+  if (estados[nuevaPos] === "progreso") iniciarCuentaAtras();
+  if (estados[nuevaPos] === "finalizada") lanzarConfeti();
 
   renderTasks();
 }
 
-/*
-   CUENTA ATRÁS
-*/
+// --- CUENTA ATRÁS ---
+
 let countdownInterval = null;
 
 function iniciarCuentaAtras() {
   clearInterval(countdownInterval);
-
   countdownInterval = setInterval(() => {
     let cambios = false;
-
     tareas.forEach((t) => {
       if (t.estado === "progreso" && t.segundosRestantes > 0) {
         t.segundosRestantes--;
         cambios = true;
       }
     });
-
     if (cambios) {
       localStorage.setItem("tareas", JSON.stringify(tareas));
       actualizarContadoresVisuales();
@@ -263,20 +363,14 @@ function iniciarCuentaAtras() {
   }, 1000);
 }
 
-/*
-   MOSTRAR TIEMPO EN PANTALLA
-*/
 function actualizarContadoresVisuales() {
   document.querySelectorAll(".contador").forEach((el) => {
     const index = el.getAttribute("data-id");
     const t = tareas[index];
-
     if (!t) return;
-
     const h = Math.floor(t.segundosRestantes / 3600);
     const m = Math.floor((t.segundosRestantes % 3600) / 60);
     const s = t.segundosRestantes % 60;
-
     el.textContent = `⏱ ${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
     el.classList.toggle("urgente", t.segundosRestantes > 0 && t.segundosRestantes < 1800);
   });
@@ -288,7 +382,6 @@ function lanzarConfeti() {
   const colors = ["#0b5cff", "#ff6b6b", "#ffd166", "#51cf66", "#cc5de8", "#ff9f43", "#ff6bcb"];
   for (let i = 0; i < 70; i++) {
     const p = document.createElement("div");
-    p.className = "confeti-particle";
     const size = Math.random() * 9 + 4;
     p.style.cssText = `
       position:fixed; top:-12px;
@@ -337,10 +430,9 @@ function actualizarResumenGlobal() {
     `Pendiente: ${pendientes}  |  Progreso: ${progreso}  |  Fin: ${finalizadas}`;
 }
 
-// ----------- VER RESUMEN (MODAL) -------------
+// --- VER RESUMEN (MODAL) ---
 
 document.getElementById("viewSummary").addEventListener("click", () => {
-  // Borrar resumen previo si existe
   const viejo = document.getElementById("dynamicSummary");
   if (viejo) viejo.remove();
 
@@ -376,23 +468,25 @@ document.getElementById("viewSummary").addEventListener("click", () => {
   box.addEventListener("click", (e) => { if (e.target === box) box.remove(); });
 });
 
-// ENLACE TRELLO
+// --- TRELLO ---
+
 document.getElementById("trelloBtn").addEventListener("click", () => {
   window.open("https://trello.com", "_blank");
 });
 
-/*
-   INICIALIZACIÓN
-*/
+// --- INICIALIZACIÓN ---
+
 window.addEventListener("DOMContentLoaded", () => {
   initDarkMode();
+  initDragDrop();
   cargarNombre();
   renderTasks();
+
   if (tareas.some((t) => t.estado === "progreso")) {
     iniciarCuentaAtras();
   }
 
-  // Filtros de prioridad
+  // Filtros
   document.querySelectorAll(".btn-filter").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".btn-filter").forEach((b) => b.classList.remove("active"));

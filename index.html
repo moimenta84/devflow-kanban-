@@ -4,13 +4,44 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>DevFlow — Mini Kanban</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+
+    <!-- Modal: nombre del jefe (reemplaza el prompt) -->
+    <div id="nameModal" class="modal-overlay">
+      <div class="modal-card name-modal-card">
+        <h2>👋 Bienvenido a DevFlow</h2>
+        <p>Introduce tu nombre para comenzar</p>
+        <input id="nameInput" type="text" placeholder="Tu nombre..." maxlength="30" autocomplete="off" />
+        <button id="nameSubmit" class="btn">Comenzar →</button>
+      </div>
+    </div>
+
+    <!-- Modal: editar tarea -->
+    <div id="editModal" class="modal-overlay">
+      <div class="modal-card">
+        <h2>✏️ Editar tarea</h2>
+        <label>Nombre <input id="editNombre" type="text" /></label>
+        <label>Asignado a <input id="editAsig" type="text" /></label>
+        <label>Prioridad
+          <select id="editPrioridad">
+            <option value="alta">Alta</option>
+            <option value="media">Media</option>
+            <option value="baja">Baja</option>
+          </select>
+        </label>
+        <label>Descripción <textarea id="editDesc" rows="2"></textarea></label>
+        <label>Horas <input id="editHours" type="number" step="0.25" min="0.25" /></label>
+        <label>Fecha límite <input id="editDeadline" type="date" /></label>
+        <div class="form-actions">
+          <button id="editSave" class="btn">Guardar</button>
+          <button id="editCancel" class="btn outline">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
     <header class="header">
       <div class="header-left">
         <h1>DevFlow — Mini Kanban</h1>
@@ -28,60 +59,31 @@
       <section class="controls card">
         <h2>Añadir tarea</h2>
         <form id="taskForm">
-          <label
-            >Nombre tarea
-            <input
-              id="taskName"
-              type="text"
-              required
-              placeholder="Ej: Implementar login"
-            />
+          <label>Nombre tarea
+            <input id="taskName" type="text" required placeholder="Ej: Implementar login" />
           </label>
-
-          <label
-            >Asignado a
-            <input
-              id="assignedTo"
-              type="text"
-              required
-              placeholder="Nombre del desarrollador"
-            />
+          <label>Asignado a
+            <input id="assignedTo" type="text" required placeholder="Nombre del desarrollador" />
           </label>
-
-          <label
-            >Prioridad
+          <label>Prioridad
             <select id="priority">
               <option value="alta">Alta</option>
               <option value="media" selected>Media</option>
               <option value="baja">Baja</option>
             </select>
           </label>
-
-          <label
-            >Descripción
-            <textarea
-              id="description"
-              rows="3"
-              placeholder="Breve descripción"
-            ></textarea>
+          <label>Descripción
+            <textarea id="description" rows="3" placeholder="Breve descripción"></textarea>
           </label>
-
-          <label
-            >Carga estimada (horas)
-            <input
-              id="hours"
-              type="number"
-              step="0.25"
-              min="0.25"
-              value="1"
-              required
-            />
+          <label>Carga estimada (horas)
+            <input id="hours" type="number" step="0.25" min="0.25" value="1" required />
+          </label>
+          <label>Fecha límite
+            <input id="deadline" type="date" />
           </label>
           <div class="form-actions">
             <button type="submit" class="btn">Añadir tarea</button>
-            <button type="button" id="viewSummary" class="btn outline">
-              Ver resumen
-            </button>
+            <button type="button" id="viewSummary" class="btn outline">Ver resumen</button>
           </div>
         </form>
       </section>
@@ -95,18 +97,18 @@
           <button class="btn-filter" data-filter="baja">🟢 Baja</button>
         </div>
         <div class="board">
-        <div class="column" data-status="pendiente">
-          <h3>🕓 Pendiente <span class="col-count">0</span></h3>
-          <div class="column-body" id="pendienteList"></div>
-        </div>
-        <div class="column" data-status="progreso">
-          <h3>⚙️ En progreso <span class="col-count">0</span></h3>
-          <div class="column-body" id="progresoList"></div>
-        </div>
-        <div class="column" data-status="finalizada">
-          <h3>✅ Finalizada <span class="col-count">0</span></h3>
-          <div class="column-body" id="finalizadaList"></div>
-        </div>
+          <div class="column" data-status="pendiente">
+            <h3>🕓 Pendiente <span class="col-count">0</span></h3>
+            <div class="column-body" id="pendienteList"></div>
+          </div>
+          <div class="column" data-status="progreso">
+            <h3>⚙️ En progreso <span class="col-count">0</span></h3>
+            <div class="column-body" id="progresoList"></div>
+          </div>
+          <div class="column" data-status="finalizada">
+            <h3>✅ Finalizada <span class="col-count">0</span></h3>
+            <div class="column-body" id="finalizadaList"></div>
+          </div>
         </div>
       </section>
     </main>
